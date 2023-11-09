@@ -1,0 +1,481 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  S3Bucket:
+    Type: String
+    Description: S3 Bucket name which your zipped up Lambda code files live in.
+  Email:
+    Type: String
+    Description: Email address to subscribe to the SNS topic.
+  InstanceTag:
+    Type: String
+    AllowedValues:
+      - Batch1
+      - Batch2
+      - Batch3
+      - Batch4
+      - Batch5
+      - Batch6
+      - Batch7
+      - Batch8
+    Description: The tag to filter which instances are going to be encrypted. Please specify a batch name e.g. 'Batch1' - if your instances are tagged 'Batch1:true' they will be processed by this workflow. 
+
+
+Resources:
+
+# Stop all instances role
+
+  StopAllInstancesRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: StopAllInstancesPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:StopInstances
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeTags
+                Resource: '*'
+
+# Stop all instances function
+
+  StopAllInstancesFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: stop-all-instances.lambda_handler  
+      Role: !GetAtt StopAllInstancesRole.Arn
+      FunctionName: stop-all-instances
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: stop-all-instances.zip
+      Runtime: python3.11
+      Timeout: 600
+      Environment:
+        Variables:
+          InstanceTag: !Ref InstanceTag
+
+
+# detach and snapshot role
+
+  DetachAndSnapshotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: DetachAndSnapshotPolic
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeVolumes
+                  - ec2:DetachVolume
+                  - ec2:CreateSnapshot
+                  - ec2:DescribeInstances
+                Resource: '*'
+
+# detach and snapshot function
+
+  DetachAndSnapshotFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: detach-and-snapshot.lambda_handler  
+      Role: !GetAtt DetachAndSnapshotRole.Arn
+      FunctionName: detach-and-snapshot
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: detach-and-snapshot.zip
+      Runtime: python3.11
+      Timeout: 600
+      Environment:
+        Variables:
+          InstanceTag: !Ref InstanceTag
+
+# Copy and Encrypt role
+
+  CopyandEncryptRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: CopyandEncryptPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CopySnapshot
+                  - ec2:DescribeSnapshots
+                  - ec2:CreateSnapshot
+                Resource: '*'
+              
+              - Effect: Allow
+                Action:
+                  - kms:Encrypt
+                Resource: '*'
+
+# Copy and Encrypt function
+
+  CopyandEncryptFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: copy-encrypt.lambda_handler  
+      Role: !GetAtt CopyandEncryptRole.Arn
+      FunctionName: copy-encrypt
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: copy-encrypt.zip	
+      Runtime: python3.11
+      Timeout: 600
+      Environment:
+        Variables:
+          InstanceTag: !Ref InstanceTag
+
+
+# Restore Role
+
+  RestoreRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: RestorePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CopySnapshot
+                  - ec2:CreateVolume
+                  - ec2:AttachVolume
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeInstances
+                  - ec2:ModifyVolume
+                Resource: '*'
+
+
+# Restore Function
+
+  RestoreFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: restore.lambda_handler  
+      Role: !GetAtt RestoreRole.Arn
+      FunctionName: restore
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: restore.zip	
+      Runtime: python3.11
+      Timeout: 600
+      Environment:
+        Variables:
+          InstanceTag: !Ref InstanceTag
+
+
+
+# Reattach Role
+
+  StartRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: StartPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:AttachVolume
+                  - ec2:ModifyVolume
+                  - ec2:StartInstances
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeInstances
+                Resource: '*'
+
+
+
+# Reattach Function
+
+  StartFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: start.lambda_handler  
+      Role: !GetAtt StartRole.Arn
+      FunctionName: start
+      Code:
+        S3Bucket: !Ref S3Bucket
+        S3Key: start.zip
+      Runtime: python3.11
+      Timeout: 600
+      Environment:
+        Variables:
+          InstanceTag: !Ref InstanceTag
+
+# SNS Topic
+
+  SNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: EncryptionCompleted
+      TopicName: encryption-completed
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref Email
+
+
+# State Machine Role
+
+  StateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: RestorePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+
+                Resource: 
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:copy-encrypt:*'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:start:*'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:restore:*'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:stop-all-instances:*'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:detach-and-snapshot:*' 
+
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+
+                Resource: 
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:copy-encrypt'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:start'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:restore'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:stop-all-instances'
+                  - !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:detach-and-snapshot' 
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+
+                Resource: 
+                  - !Sub 'arn:aws:sns:${AWS::Region}:${AWS::AccountId}:encryption-completed'
+
+
+  # State Machine
+
+  StateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString: !Sub |
+        {
+          "Comment": "A description of my state machine",
+          "StartAt": "Stop Instances",
+          "States": {
+            "Stop Instances": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:stop-all-instances:$LATEST"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Next": "Wait"
+            },
+            "Wait": {
+              "Type": "Wait",
+              "Seconds": 300,
+              "Next": "Detach and Snapshot"
+            },
+            "Detach and Snapshot": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:detach-and-snapshot:$LATEST"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Next": "Wait 2"
+            },
+            "Wait 2": {
+              "Type": "Wait",
+              "Seconds": 90,
+              "Next": "Copy and Encrypt"
+            },
+            "Copy and Encrypt": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:copy-encrypt:$LATEST"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Next": "Wait 3"
+            },
+            "Wait 3": {
+              "Type": "Wait",
+              "Seconds": 300,
+              "Next": "Restore"
+            },
+            "Restore": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:restore:$LATEST"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Next": "Wait 4"
+            },
+            "Wait 4": {
+              "Type": "Wait",
+              "Seconds": 300,
+              "Next": "Start"
+            },
+            "Start": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "OutputPath": "$.Payload",
+              "Parameters": {
+                "Payload.$": "$",
+                "FunctionName": "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:start:$LATEST"
+              },
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "Lambda.ServiceException",
+                    "Lambda.AWSLambdaException",
+                    "Lambda.SdkClientException",
+                    "Lambda.TooManyRequestsException"
+                  ],
+                  "IntervalSeconds": 1,
+                  "MaxAttempts": 3,
+                  "BackoffRate": 2
+                }
+              ],
+              "Next": "Notify completion of encryption"
+            },
+            "Notify completion of encryption": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::sns:publish",
+              "Parameters": {
+                "Message.$": "$",
+                "TopicArn": "arn:aws:sns:${AWS::Region}:${AWS::AccountId}:encryption-completed"
+              },
+              "End": true
+            }
+          }
+        }
+      RoleArn: !GetAtt [StateMachineRole, Arn]
+
+
+Outputs:
+  StateMachineArn:
+    Description: "ARN of the created State Machine"
+    Value: !Ref StateMachine
