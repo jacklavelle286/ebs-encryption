@@ -2,7 +2,10 @@
 
 - This solution is a step functions workflow made up of 5 Lambda functions which carry out the process of encrypting EBS Volumes within an account based on a tag value. It is desgined to work in the following way.
 
-- Within this directory you will find all the code files, the cloudformation template and a diagram of the solution.
+- Within this directory you will find all the code files, the cloudformation template and a diagram of the solution (below):
+
+![encrypt-ebs](https://github.com/jacklavelle286/ebs-encryption/assets/78485499/14d61bf9-8c7d-4a18-8981-2983185399ce)
+
 
 # Prerequisites
 
