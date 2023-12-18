@@ -9,29 +9,6 @@
 1. Upload the 5 code files to an S3 bucket within a delegated administrator account / the master payer account and give it the following bucket policy:
 
 
-`{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": [
-                "s3:GetObject",
-                "s3:ListBucket"
-            ],
-            "Resource": [
-                "arn:aws:s3:::BUCKET-NAME",
-                "arn:aws:s3:::BUCKET-NAME/*"
-            ],
-            "Condition": {
-                "StringEquals": {
-                    "aws:PrincipalOrgID": "ORG-ID-HERE"
-                }
-            }
-        }
-    ]
-}`
-
 - Add in your organization id and your bucket name in the corresponding places above. This will ensure that each stack will be able to use the exact same code regardless of which account it is deployed in - ensuring consistency. 
 
 
