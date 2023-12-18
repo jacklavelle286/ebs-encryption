@@ -6,10 +6,10 @@
 
 # Prerequisites
 
-1. Upload the 5 code files to an S3 bucket within a delegated administrator account / the master payer account and give it the following bucket policy:
+1. Upload the 5 code files to an S3 bucket within a delegated administrator account / the master payer account and give it a bucket policy which allows it to be access by lambda functions across your org / accounts you want to specify.  See bucket-policy.json as an example.
 
 
-- Add in your organization id and your bucket name in the corresponding places above. This will ensure that each stack will be able to use the exact same code regardless of which account it is deployed in - ensuring consistency. 
+- Add in your organization id and your bucket name in the corresponding places. This will ensure that each stack will be able to use the exact same code regardless of which account it is deployed in, ensuring consistency. 
 
 
 2. Tag a maximum of 20 EC2 instances which you intend to encrypt with any of the following tags:
