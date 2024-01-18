@@ -351,7 +351,7 @@ Resources:
             },
             "Wait": {
               "Type": "Wait",
-              "Seconds": 300,
+              "Seconds": 120,
               "Next": "Detach and Snapshot"
             },
             "Detach and Snapshot": {
@@ -407,7 +407,7 @@ Resources:
             },
             "Wait 3": {
               "Type": "Wait",
-              "Seconds": 300,
+              "Seconds": 120,
               "Next": "Restore"
             },
             "Restore": {
@@ -435,7 +435,7 @@ Resources:
             },
             "Wait 4": {
               "Type": "Wait",
-              "Seconds": 300,
+              "Seconds": 120,
               "Next": "Start"
             },
             "Start": {
